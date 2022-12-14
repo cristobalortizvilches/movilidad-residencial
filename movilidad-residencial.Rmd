@@ -1,8 +1,10 @@
 ---
-title: "Movilidad residencial ELSOC"
-author: "Cristóbal Ortiz"
-date: '2022-11-17'
+title: "Movilidad Residencial ELSOC"
+author: "Francisca Bogolasky, Alejandro Marambio y Cristóbal Ortiz"
+date: 'diciembre de 2022 - enero de 2023'
 output:
+  word_document:
+    toc: yes
   html_document:
     keep_md: yes
     toc: yes
@@ -12,10 +14,10 @@ output:
       collapsed: yes
   pdf_document:
     toc: yes
-  word_document:
-    toc: yes
+header-includes:
+   - \usepackage{floatrow}
+   - \floatsetup[figure]{capposition=top}
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
 	echo = FALSE,
@@ -60,9 +62,14 @@ elsoc::load_elsoc('territorial-2017')
 territorial <- merge(elsoc_wide_2016_2021, elsoc_terr_2017, by="idencuesta")
 ```
 
-## Movilidad residencial
+```{r recode}
+elsoc_long_2016_2021$m44[elsoc_long_2016_2021$m44 == 5] <- 4
+```
 
-```{r movilidad-ola}
+
+# I. Intención de movilidad residencial
+
+```{r intencion-ola}
 
 elsoc_long_2016_2021 %>% 
   filter(tipo_atricion == 1 & muestra == 1 & !is_nsnr(t05)) %>%
@@ -74,57 +81,103 @@ elsoc_long_2016_2021 %>%
   prop(x = t05, by = ola, na.rm = TRUE) %>% 
   ggplot(aes(y = prop, x = ola, fill = t05, 
              label = as.character(scales::percent(prop, accuracy = .1)))) + 
-  theme_bw() + 
+  theme_bw() +
   geom_col(position = 'Stack') +
+  scale_y_continuous(labels = scales::percent) +
   scale_fill_viridis_d(end = .85) +
   geom_text(position = position_stack(vjust = .5),
             size = 3, color = rep(c('white', 'white', 'black', 'black'), 5)) + 
   theme(plot.caption = element_text(hjust = 0),
         legend.position = 'top',
         legend.title = element_blank()) +
-labs(x = NULL, y = NULL, 
+  labs(x = NULL, y = NULL, 
      title = 'Intención de movilidad residencial según ola de estudio',
      caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=7.529 (1.513 individuos)')
+
 ```
 
-```{r movilidad-ola-precio}
-
+```{r intencion-ola-precioviv}
 
 elsoc_long_2016_2021 %>% 
-  filter(tipo_atricion == 1 & muestra == 1 & ola %in% 1:4 & !t05 %in% c(-888, -999) & !t04_03 %in% c(-888, -999)) %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola %in% 1:4, !is_nsnr(t05, t04_03, ola)) %>% 
   mutate(t04_03 = factor(car::recode(t04_03, "1:2 = 1; 3 = 2; 4:5 = 3"),
                          levels = 1:3,
-                         labels = c("En desacuerdo o\ntotalmente en desacuerdo","Ni de acuerdo\nni en desacuerdo","De acuerdo o\ntotalmente de acuerdo"))) %>%
-  as_label(ola) %>%
-  prop(t05 == 3, by = c(ola, t04_03), na.rm = TRUE) %>% 
-  ggplot(aes(y = prop, x = t04_03, fill = ola, 
+                         labels = c("En desacuerdo o\ntotalmente en desacuerdo",
+                                    "Ni de acuerdo\nni en desacuerdo",
+                                    "De acuerdo o\ntotalmente de acuerdo")),
+         t05 = factor(t05, labels = c("Si, a otro barrio\nde la comuna", 
+                                      "Si, a otra\ncomuna", 
+                                      "No, porque estoy\nbien donde estoy", 
+                                      "No, no puedo\naunque quisiera"))) %>%
+  as_label(t05, ola) %>%
+  prop(t05, by = c(ola, t04_03), na.rm = TRUE) %>% 
+  filter(t04_03 == "De acuerdo o\ntotalmente de acuerdo") %>% 
+  ggplot(aes(y = prop, x = t05, fill = ola, 
              label = scales::percent(prop, accuracy = .1))) + 
   theme_bw() + 
   geom_col(position = 'dodge2') +
   scale_y_continuous(labels = scales::percent,
                      limits = c(0, 1)) +
   scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
-  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
         legend.title = element_blank()) +
   geom_text(vjust = -0.8,
             position = position_dodge(width = .9),
-            size = 3) +
-labs(x = NULL, y = NULL, 
-     title = 'Intención de movilidad residencial según percepción de encarecimiento y ola',
-     subtitle = 'Porcentaje que responde "No, porque estoy bien donde estoy"',
+            size = 2.5) +
+  labs(x = NULL, y = NULL, 
+     title = 'Intención de movilidad residencial según percepción de\naumento en el precio de viviendas en su barrio y ola',
+     subtitle = 'Porcentaje que responde "De acuerdo o totalmente de acuerdo" ',
      caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
 
 ```
 
-```{r movilidad-ola-tenencia}
+```{r intencion-ola-preciobarrio}
 
 elsoc_long_2016_2021 %>% 
-  filter(tipo_atricion == 1 & muestra == 1 & ola == c(1,3,5) & !t05 %in% c(-888, -999)  & !m33 %in% c(-666, -777, -888, -999)) %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola %in% 1:4, !is_nsnr(t05, t04_02, ola)) %>% 
+  mutate(t04_02 = factor(car::recode(t04_02, "1:2 = 1; 3 = 2; 4:5 = 3"),
+                         levels = 1:3,
+                         labels = c("En desacuerdo o\ntotalmente en desacuerdo",
+                                    "Ni de acuerdo\nni en desacuerdo",
+                                    "De acuerdo o\ntotalmente de acuerdo")),
+         t05 = factor(t05, labels = c("Si, a otro barrio\nde la comuna", 
+                                      "Si, a otra\ncomuna", 
+                                      "No, porque estoy\nbien donde estoy", 
+                                      "No, no puedo\naunque quisiera"))) %>%
+  as_label(t05, ola) %>%
+  prop(t05, by = c(ola, t04_02), na.rm = TRUE) %>% 
+  filter(t04_02 == "De acuerdo o\ntotalmente de acuerdo") %>% 
+  ggplot(aes(y = prop, x = t05, fill = ola, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 2.5) +
+  labs(x = NULL, y = NULL, 
+     title = 'Intención de movilidad residencial según percepción de\naumento en el precio bienes y servicios del barrio y ola',
+     subtitle = 'Porcentaje que responde "De acuerdo o totalmente de acuerdo" ',
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+
+```
+
+```{r intencion-ola-tenencia}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == c(1,3,5), !is_nsnr(t05, m33, ola)) %>% 
   mutate(m33 = factor(car::recode(m33, "1:2 = 1; 3 = 2; 4:7 = 3"),
                          levels = 1:3,
                          labels = c("Propietario","Arrendatario","Otro"))) %>%
-  as_label(ola) %>%
-  prop(t05 == 3, by = c(ola, m33), na.rm = TRUE) %>% 
+  as_label(t05, ola) %>%
+  prop(t05, by = c(ola, m33), na.rm = TRUE) %>% 
+  filter(!m33 == "Otro") %>% 
   ggplot(aes(y = prop, x = m33, fill = ola, 
              label = scales::percent(prop, accuracy = .1))) + 
   theme_bw() + 
@@ -132,51 +185,110 @@ elsoc_long_2016_2021 %>%
   scale_y_continuous(labels = scales::percent,
                      limits = c(0, 1)) +
   scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
-  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
         legend.title = element_blank()) +
   geom_text(vjust = -0.8,
             position = position_dodge(width = .9),
             size = 3) +
-labs(x = NULL, y = NULL, 
-     title = 'Intención de movilidad residencial según tenencia y ola', 
-     subtitle = 'Porcentaje que responde "No, porque estoy bien donde estoy"',
+  facet_wrap(.~t05) +
+  labs(x = NULL, y = NULL, 
+     title = 'Intención de movilidad residencial según tipo de tenencia y ola', 
      caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
 
 ```
 
-```{r movilidad-ola-deuda}
+```{r intencion-ola-ahorro}
 
-frq(elsoc_wide_2016_2021$m44_w01)
-
-elsoc_long_2016_2021 %>% 
-    filter(tipo_atricion == 1, muestra == 1, ola == c(1,3,5), !is_nsnr(t05, m44, ola)) %>% 
-  mutate(m44 = factor(car::recode(m44, "1:2=1; 3:4=2; 5=3"),
-                      levels = c(1,2,3),
-                      labels = c("Nada o poco ahorro","Ahorro suficientes","Mucho ahorro"))) %>%
-  as_label(ola) %>%
-  prop(t05 == 3, by = c(ola, m44), na.rm = TRUE) %>% 
+elsoc_long_2016_2021 %>%
+  filter(tipo_atricion == 1, muestra == 1, ola == c(1,3,5), !is_nsnr(t05, m44, ola)) %>% 
+  mutate(m44 = factor(m44, labels = c("No tiene",
+                                 "Poco",
+                                 "Suficientes",
+                                 "Mucho"))) %>% 
+  as_label(t05, ola) %>%
+  prop(t05, by = c(ola, m44), na.rm = TRUE) %>% 
   ggplot(aes(y = prop, x = m44, fill = ola, 
              label = scales::percent(prop, accuracy = .1))) + 
   theme_bw() + 
   geom_col(position = 'dodge2') +
-  scale_y_continuous(labels = scales::percent,
-                     limits = c(0, 1)) +
+  scale_y_continuous(labels = scales::percent) +
   scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
   theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
         legend.title = element_blank()) +
   geom_text(vjust = -0.8,
             position = position_dodge(width = .9),
-            size = 3) +
-labs(x = NULL, y = NULL, 
-     title = 'Intención de movilidad residencial según deuda y ola', 
+            size = 2.5) +
+  facet_wrap(.~t05) +
+  labs(x = NULL, y = NULL, 
+     title = 'Intención de movilidad residencial según nivel de ahorro y ola', 
      subtitle = 'Porcentaje que responde "No, porque estoy bien donde estoy"',
      caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
 
 ```
 
+```{r intencion-ola-sobrecarga-CHECK}
 
-```{r movilidad-ola-quintil}
+# NO FUNCIONA BIEN
+#frq(elsoc_wide_2016_2021$m43_w01) #3 | Algo sobrecargado | 0
+#frq(elsoc_wide_2016_2021$m43_w03) #3 | Algo sobrecargado | 0
+#frq(elsoc_wide_2016_2021$m43_w05) #3 | Algo sobrecargado | 648
 
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == c(1,3,5), !is_nsnr(t05, m43, ola)) %>% 
+  mutate(m43 = factor(car::recode(m43, "1:2 = 1; 3 = 2; 4:5 = 3"),
+                         levels = c(1,2,3),
+                         labels = c("Baja", "Media", "Alta"))) %>% 
+  as_label(t05, ola) %>%
+  prop(t05, by = c(ola, m43), na.rm = TRUE) %>% 
+  drop_na() %>% 
+  ggplot(aes(y = prop, x = m43, fill = ola, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 2.5) +
+  facet_wrap(.~t05) +
+  labs(x = NULL, y = NULL, 
+     title = 'Intención de movilidad residencial según nivel de sobrecarga y ola', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos). \nNota2: Sobrecarga media en años 2016 y 2018 presenta N=0. Requiere chequear con equipo ELSOC.')
+```
+
+```{r intencion-ola-deuda}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == c(1,3,5), !is_nsnr(t05, m42_01, m42_02, m42_03, ola)) %>% 
+  as_label(t05, ola) %>% 
+  prop_list(m42_01 == 1, m42_02 == 1, m42_03 == 1, by = c(t05, ola), na.rm = TRUE) %>% 
+  mutate(name = factor(name, 
+                       levels = c('m42_01 == 1', 'm42_02 == 1', 'm42_03 == 1'),
+                       labels = c('Casas comerciales', 'Bancos', 'Parientes'))) %>% 
+  ggplot(aes(y = prop, x = ola, color = name, group = name,
+               label = scales::percent(prop, accuracy = .1))) +
+    theme_bw() +  
+    geom_line() +
+    geom_point(size = 1.75) +
+    scale_y_continuous(labels = scales::percent,
+                       limits = c(0,1)) +
+    scale_color_viridis_d(begin = .1, end = .66, option = 'viridis') +
+    geom_text_repel(size = 3, nudge_y = .02, color = 'black') +
+    theme(plot.caption = element_text(hjust = 0),
+          legend.position = 'top',
+          legend.title = element_blank())  + 
+  facet_wrap(.~t05) +
+  labs(x = NULL, y = NULL, 
+     title = 'Tipo de endeudamiento según intención de movilidad y ola', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+```
+
+
+```{r intencion-ola-quintil}
 elsoc_long_2016_2021 %>% 
   filter(tipo_atricion == 1 & !is_nsnr(t05),
          !is_nsnr(m30, m30b, nhogar1, m46_nhogar, m54)) %>% 
@@ -196,8 +308,8 @@ elsoc_long_2016_2021 %>%
          quintil = factor(quintil, levels = 1:5, labels = glue::glue('Quintil {1:5}'))
          ) %>%
   ungroup() %>% 
-  prop(t05 == 3 , by = c(quintil, ola), na.rm = TRUE) %>% 
-  as_label(ola) %>% 
+  as_label(ola, t05) %>% 
+  prop(t05, by = c(quintil, ola), na.rm = TRUE) %>% 
   filter(quintil %in% c('Quintil 1', 'Quintil 5')) %>% 
   ggplot(aes(y = prop, x = ola, color = quintil, group = quintil,
              label = scales::percent(prop, .1))) +
@@ -206,20 +318,188 @@ elsoc_long_2016_2021 %>%
   theme_bw() +   
   scale_color_viridis_d(begin = 0, end = .66, direction = 1) +
   scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
-  geom_text_repel(size = 3, nudge_y = .01)+
+  geom_text_repel(size = 2.5, nudge_y = .01)+
   theme(plot.caption = element_text(hjust = 0),
         legend.position = 'top',
         legend.title = element_blank()) + 
+  facet_wrap(.~t05) +
   labs(y = NULL, x = NULL,
        title = 'Intención de movilidad residencial según quintil de ingresos y ola del estudio', 
-       subtitle = 'Porcentaje que responde "No, porque estoy bien donde estoy"',
        caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=7.308 (1.513 individuos)')
 ```
 
-```{r arraigo-ola-quintil-zona}
+# II. Movilidad residencial efectiva
+
+```{r efectiva}
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1 & muestra == 1 & !is_nsnr(t14)) %>%
+  as_label(ola, t14) %>%
+  prop(x = t14, by = ola, na.rm = TRUE) %>% 
+  ggplot(aes(y = prop, x = t14, fill = t14,
+             label = as.character(scales::percent(prop, accuracy = .1)))) +
+  theme_bw() + 
+  geom_col() +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+  labs(x = NULL, y = NULL, 
+     title = get_label(elsoc_long_2016_2021$t14),
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=7.529 (1.513 individuos)')
+```
+
+```{r efectiva-precio-CHECK, eval=FALSE, include=FALSE}
+# no hay medición de encarecimiento en 2021; POSIBLE SOLUCIÓN: IMPUTAR OLA 5 DESDE OLA 4
 
 elsoc_long_2016_2021 %>% 
-  filter(tipo_atricion == 1 & !is_nsnr(t05),
+  filter(tipo_atricion == 1 & muestra == 1 & ola %in% 4:5 & !t14 %in% c(-888, -999) & !t04_03 %in% c(-888, -999)) %>% 
+  mutate(t04_03 = factor(car::recode(t04_03, "1:2 = 1; 3 = 2; 4:5 = 3"),
+                         levels = 1:3,
+                         labels = c("En desacuerdo o\ntotalmente en desacuerdo",
+                                    "Ni de acuerdo\nni en desacuerdo",
+                                    "De acuerdo o\ntotalmente de acuerdo"))) %>%
+  as_label(t14, ola) %>%
+  prop(x = t14, by = c(ola, t04_03), na.rm = TRUE) %>% 
+  ggplot(aes(y = prop, x = t04_03, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+labs(x = NULL, y = NULL, 
+     title = 'Mantiene residencia respecto a Septiembre 2017 según percepción de encarecimiento',
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+
+```
+
+```{r efectiva-tenencia}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == 5, !is_nsnr(t14, m33, ola)) %>% 
+  mutate(m33 = factor(car::recode(m33, "1:2 = 1; 3 = 2; 4:7 = 3"),
+                         levels = 1:3,
+                         labels = c("Propietario","Arrendatario","Otro"))) %>%
+  as_label(t14, ola) %>%
+  prop(x = t14, by = c(ola, m33), na.rm = TRUE) %>% 
+  filter(!m33 == "Otro") %>% 
+  ggplot(aes(y = prop, x = m33, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           
+        legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+labs(x = NULL, y = NULL, 
+     title = 'Mantiene residencia respecto a Septiembre 2017 según tipo de tenencia', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+
+```
+
+```{r efectiva-ahorro}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == 5, !is_nsnr(t14, m44, ola)) %>% 
+  mutate(m44 = factor(m44, labels = c("No tiene",
+                                 "Poco",
+                                 "Suficientes",
+                                 "Mucho"))) %>% 
+  as_label(t14, ola) %>%
+  prop(x = t14, by = c(ola, m44), na.rm = TRUE) %>% 
+  ggplot(aes(y = prop, x = m44, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+labs(x = NULL, y = NULL, 
+     title = 'Mantiene residencia respecto a Septiembre 2017 según nivel de ahorro', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+
+```
+
+```{r efectiva-sobrecarga}
+
+#frq(elsoc_wide_2016_2021$m43_w05) #3 | Algo sobrecargado | 648
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == 5, !is_nsnr(t14, m43, ola)) %>% 
+  mutate(m43 = factor(car::recode(m43, "1:2 = 1; 3 = 2; 4:5 = 3"),
+                         levels = 1:3,
+                         labels = c("Baja", "Media", "Alta"))) %>% 
+  as_label(t14, ola) %>%
+  prop(t14, by = c(ola, m43), na.rm = TRUE) %>% 
+  drop_na() %>% 
+  ggplot(aes(y = prop, x = m43, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+   scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+  labs(x = NULL, y = NULL, 
+     title = 'Mantiene residencia respecto a Septiembre 2017 según\nnivel de sobrecarga por deudas', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2016-2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+```
+
+```{r efectiva-deuda}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1, muestra == 1, ola == 5, !is_nsnr(m42_01, m42_02, m42_03, ola, t14)) %>% 
+  as_label(t14) %>% 
+  prop_list(m42_01 == 1, m42_02 == 1, m42_03 == 1, by = c(t14), na.rm = TRUE) %>% 
+  mutate(name = factor(name, 
+                       levels = c('m42_01 == 1', 'm42_02 == 1', 'm42_03 == 1'),
+                       labels = c('Casas comerciales', 'Bancos', 'Parientes'))) %>% 
+  ggplot(aes(y = prop, x = name, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+  labs(x = NULL, y = NULL, 
+     title = 'Tipo de endeudamiento según mantiene residencia respecto a Sept. 2017', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
+```
+
+```{r efectiva-ola-quintil}
+
+elsoc_long_2016_2021 %>% 
+  filter(tipo_atricion == 1 & !is_nsnr(t14),
          !is_nsnr(m30, m30b, nhogar1, m46_nhogar, m54)) %>% 
   mutate(m30 = as.numeric(car::recode(m30, "1 = 110000; 2 = 251000; 
   3 = 305000; 4 = 355000; 5 = 400000; 
@@ -234,29 +514,26 @@ elsoc_long_2016_2021 %>%
   ypc = m29_imp / nhogar) %>% 
   group_by(ola) %>% 
   mutate(quintil = xtile(ypc, n = 5, wt = ponderador02),
-         quintil = factor(quintil, levels = 1:5, labels = glue::glue('Quintil {1:5}')),
-         zona1 = factor(car::recode(region_cod, 
-                                    "c(1,2,3,4,15)=1; c(5,6,7,8,16)=2; c(9,10,11,12,14)=3; 13=4"),
-                        levels = 1:4,
-                        labels = c("Norte","Centro","Sur","Metropolitana"))) %>%
+         quintil = factor(quintil, levels = 1:5, labels = glue::glue('Quintil {1:5}'))
+         ) %>%
   ungroup() %>% 
-  prop(t05 == 3 , by = c(quintil, ola, zona1), na.rm = TRUE) %>% 
-  as_label(ola) %>% 
-  filter(quintil %in% c('Quintil 1', 'Quintil 5')) %>% 
-  ggplot(aes(y = prop, x = ola, color = quintil, group = quintil,
-             label = scales::percent(prop, .1))) +
-  geom_point(size = 1.75) + 
-  geom_line() +
-  theme_bw() +   
-  scale_color_viridis_d(begin = 0, end = .66, direction = 1) +
-  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
-  geom_text_repel(size = 3, nudge_y = .01)+
-  theme(plot.caption = element_text(hjust = 0),
-        legend.position = 'top',
-        legend.title = element_blank()) + 
-  facet_wrap(.~ zona1) +
-  labs(y = NULL, x = NULL, 
-       title = 'Intención de movilidad residencial según quintil, ola y zona', 
-       subtitle = 'Porcentaje que responde "No, porque estoy bien donde estoy"',
-       caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=7.308 (1.513 individuos)')
+  prop(x = t14 , by = c(quintil, ola), na.rm = TRUE) %>% 
+  as_label(t14) %>% 
+  ggplot(aes(y = prop, x = quintil, fill = t14, 
+             label = scales::percent(prop, accuracy = .1))) + 
+  theme_bw() + 
+  geom_col(position = 'dodge2') +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d(begin = .33, end = .66, direction = -1) +
+  theme(plot.caption = element_text(hjust = 0),           legend.position = 'top',
+        legend.title = element_blank()) +
+  geom_text(vjust = -0.8,
+            position = position_dodge(width = .9),
+            size = 3) +
+  labs(x = NULL, y = NULL, 
+     title = 'Mantiene residencia respecto a Septiembre 2017 según quintil de ingreso', 
+     caption = 'Fuente: Elaboración propia en base a datos ELSOC 2021.\nNota: Se consideran observaciones de individuos sin atrición entre olas. N=3.011 (1.513 individuos)')
 ```
+
+
